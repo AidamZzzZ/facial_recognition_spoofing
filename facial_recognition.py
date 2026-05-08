@@ -1,6 +1,6 @@
 import cv2
 from src.tools.clean_screen import limpiar_pantalla
-from src.model.model_function import detectar_rostro_imagen
+from src.model.model_function import detectar_rostro_imagen, detectar_rostro_vivo
 
 def main():
     limpiar_pantalla()
@@ -14,6 +14,8 @@ R: """))
         print("Analizando imagen...")
         img = detectar_rostro_imagen(ruta)
         limpiar_pantalla()
+    elif entrada == 2:
+        live = detectar_rostro_vivo()
     else:
         print("Opcion no valida.")
     

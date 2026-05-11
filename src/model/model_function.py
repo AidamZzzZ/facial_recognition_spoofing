@@ -5,33 +5,44 @@ from deepface import DeepFace
 from deepface.modules.exceptions import ImgNotFound
 
 
+# funcion para detectar rostros en imagenes
 def detectar_rostro_imagen(base_path):
     try: 
+        # se lee la imagen desde la ruta
         img = cv2.imread(base_path)
+        # se extraen los rostros con sus coordenadas
         result = DeepFace.extract_faces(img_path=base_path, detector_backend='retinaface', enforce_detection=False)
 
+        # se iteran sobre todos los rostros
         for face in result:
+            # si la confianza del modelo es mayor a 0.6 este mostrara el rostro
             confianza = face['confidence']
             if confianza > 0.6: 
+                # se toman las coordenadas en los distintos ejes
                 x = face['facial_area']['x']
                 y = face['facial_area']['y']
                 w = face['facial_area']['w']
                 h = face['facial_area']['h']
                 
-            
+                # se crea el rectangulo con los parametros en la imagen
                 cv2.rectangle(img, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                # se agrega una etiqueta con la cual muestra el nivel de confianza del modelo
                 cv2.putText(img, f"{confianza:.2f}", (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
                 
+        # se redimensiona la imagen para mostrarla al usuario
         imagen_redimensionada = cv2.resize(img, (640, 480), interpolation=cv2.INTER_LINEAR)
         cv2.imshow("resultado: ",imagen_redimensionada)
+        # cuando el usuario presione 0 se cerrara la ventana
         cv2.waitKey(0)
         cv2.destroyAllWindows()
         return img
+    # excepcion de errores
     except cv2.error as e:
         print(f"Error: {e}")
     except ImgNotFound as e:
         print(f"Error: {e}")
-        
+
+# funcion para detectar rostros en vivo
 def detectar_rostro_vivo():
     # inicializando la video camara
     cap = cv2.VideoCapture(0)
@@ -73,7 +84,7 @@ def detectar_rostro_vivo():
         final_frame = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
         
         # el modelo busca los rostros en la imagen
-        face_location = face_recognition.face_locations(final_frame, model='arcface')
+        face_location = face_recognition.face_locations(final_frame, model='hog')
 
         # se crea un bounding box que se incrusta en la imagen
         for (top, right, bottom, left) in face_location:
@@ -85,8 +96,7 @@ def detectar_rostro_vivo():
             cv2.rectangle(final_frame, (left, top), (right, bottom), (0, 255, 0), 2)
 
         # se muestra la imagen en vivo
-        cv2.imshow("Deteccion facial en vivo", frame)
-        cv2.imshow("frame con clahe", final_frame)
+        cv2.imshow("En vivo", final_frame)
         # al presionar q se apaga la camara
         if cv2.waitKey(1) == ord('q'):
             break

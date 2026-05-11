@@ -1,14 +1,9 @@
 import cv2
-import supervision as sv
-from ultralytics import YOLO
+import time
 import face_recognition
 from deepface import DeepFace
 from deepface.modules.exceptions import ImgNotFound
 
-model = YOLO('yolov8n.pt')
-
-box_annotator = sv.BoxAnnotator()
-label_annotator = sv.LabelAnnotator()
 
 def detectar_rostro_imagen(base_path):
     try: 
@@ -38,28 +33,64 @@ def detectar_rostro_imagen(base_path):
         print(f"Error: {e}")
         
 def detectar_rostro_vivo():
+    # inicializando la video camara
     cap = cv2.VideoCapture(0)
-    
+
+    # se crea un objeto CLAHE
+    clahe = cv2.createCLAHE(clipLimit=2.0)
+
+    # inicializacion de cuadro pasado del frame
+    p_time = 0
+
+    # si no se abre la camara web se mostrara un error
     if not cap.isOpened():
         print("Camara no pudo iniciarse")
     
+    # se ejecuta la camara web en tiempo real
     while cap.isOpened():
         ret, frame = cap.read()
         
         if not ret:
             break
         
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        # calculando los fps por segundo
+        c_time = time.time()
+        fps = 1 / (c_time - p_time)
+        p_time = c_time
+
+        # mostrar los FPS en el live
+        cv2.putText(frame, f"FPS: {int(fps)}", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+        # aplicando downscaling a la imagen a 1/4 parte de su tamano
+        small_frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
+
+        lab = cv2.cvtColor(small_frame, cv2.COLOR_BGR2LAB)
+        l, a, b = cv2.split(lab)
+        l_clahe = clahe.apply(l)
+
+        limg = cv2.merge((l_clahe, a, b))
+
+        final_frame = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
         
-        face_location = face_recognition.face_locations(rgb_frame, model='arcface')
-        
+        # el modelo busca los rostros en la imagen
+        face_location = face_recognition.face_locations(final_frame, model='arcface')
+
+        # se crea un bounding box que se incrusta en la imagen
         for (top, right, bottom, left) in face_location:
-            cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
-        
+            # escalando coordenadas por el factor inversa a la imagen original
+            # top *= 2
+            # right *= 2
+            # bottom *= 2
+            # left *= 2
+            cv2.rectangle(final_frame, (left, top), (right, bottom), (0, 255, 0), 2)
+
+        # se muestra la imagen en vivo
         cv2.imshow("Deteccion facial en vivo", frame)
-        
+        cv2.imshow("frame con clahe", final_frame)
+        # al presionar q se apaga la camara
         if cv2.waitKey(1) == ord('q'):
             break
         
+    # se limpia el cache y se quitan los procesos abiertos en segundo plano
     cap.release()
     cv2.destroyAllWindows()

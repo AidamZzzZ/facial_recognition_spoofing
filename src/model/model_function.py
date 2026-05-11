@@ -1,6 +1,5 @@
 import cv2
 import time
-import face_recognition
 from deepface import DeepFace
 from deepface.modules.exceptions import ImgNotFound
 
@@ -45,7 +44,7 @@ def detectar_rostro_imagen(base_path):
 # funcion para detectar rostros en vivo
 def detectar_rostro_vivo():
     # inicializando la video camara
-    cap = cv2.VideoCapture(0)
+    cap_h1 = cv2.VideoCapture(0)
 
     # se crea un objeto CLAHE
     clahe = cv2.createCLAHE(clipLimit=2.0)
@@ -54,12 +53,12 @@ def detectar_rostro_vivo():
     p_time = 0
 
     # si no se abre la camara web se mostrara un error
-    if not cap.isOpened():
+    if not cap_h1.isOpened():
         print("Camara no pudo iniciarse")
     
     # se ejecuta la camara web en tiempo real
-    while cap.isOpened():
-        ret, frame = cap.read()
+    while cap_h1.isOpened():
+        ret, frame = cap_h1.read()
         
         if not ret:
             break
@@ -72,35 +71,16 @@ def detectar_rostro_vivo():
         # mostrar los FPS en el live
         cv2.putText(frame, f"FPS: {int(fps)}", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-        # aplicando downscaling a la imagen a 1/4 parte de su tamano
-        small_frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
+        results = DeepFace.analyze(frame, actions=['emotion'], enforce_detection=False, detector_backend='opencv',)
 
-        lab = cv2.cvtColor(small_frame, cv2.COLOR_BGR2LAB)
-        l, a, b = cv2.split(lab)
-        l_clahe = clahe.apply(l)
+        for result in results:
+            x, y, w, h = result['region']['x'], result['region']['y'], result['region']['w'], result['region']['h']        # aplicando downscaling a la imagen a 1/4 parte de su tamano
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
-        limg = cv2.merge((l_clahe, a, b))
-
-        final_frame = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
-        
-        # el modelo busca los rostros en la imagen
-        face_location = face_recognition.face_locations(final_frame, model='hog')
-
-        # se crea un bounding box que se incrusta en la imagen
-        for (top, right, bottom, left) in face_location:
-            # escalando coordenadas por el factor inversa a la imagen original
-            # top *= 2
-            # right *= 2
-            # bottom *= 2
-            # left *= 2
-            cv2.rectangle(final_frame, (left, top), (right, bottom), (0, 255, 0), 2)
-
-        # se muestra la imagen en vivo
-        cv2.imshow("En vivo", final_frame)
-        # al presionar q se apaga la camara
+        cv2.imshow("Deteccion en tiempo real ", frame)
         if cv2.waitKey(1) == ord('q'):
             break
-        
+    
     # se limpia el cache y se quitan los procesos abiertos en segundo plano
-    cap.release()
+    cap_h1.release()
     cv2.destroyAllWindows()

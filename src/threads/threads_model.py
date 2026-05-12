@@ -9,14 +9,14 @@ is_processing = False
 
 def analizar_rostro_bounding_box(frame):
     global bounding_box, is_processing
-    results = DeepFace.analyze(frame, actions=['emotion'], enforce_detection=False, detector_backend='opencv',)
+    results = DeepFace.analyze(frame, actions=['emotion'], enforce_detection=False, detector_backend='opencv')
 
     for result in results:
         bounding_box = (result['region']['x'], result['region']['y'], result['region']['w'], result['region']['h'])        # aplicando downscaling a la imagen a 1/4 parte de su tamano    
     is_processing = False
 
 def video_camara(src = 0):
-    global bounding_box, is_processing
+    global bounding_box, is_processing 
     cap = cv2.VideoCapture(src)
 
     p_time = 0

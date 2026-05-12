@@ -1,8 +1,18 @@
+import os
+os.environ['TF_USE_LEGACY_KERAS'] = '0'
+import tensorflow as tf
+
+# pyrefly: ignore [missing-import]
 import cv2
 import time
-from deepface import DeepFace
-from deepface.modules.exceptions import ImgNotFound
 
+# pyrefly: ignore [missing-import]
+from deepface import DeepFace
+# pyrefly: ignore [missing-import]
+from deepface.modules.exceptions import ImgNotFound
+import os
+# pyrefly: ignore [missing-import]
+from deepface_antispoofing import DeepFaceAntiSpoofing
 
 # funcion para detectar rostros en imagenes
 def detectar_rostro_imagen(base_path):
@@ -43,6 +53,7 @@ def detectar_rostro_imagen(base_path):
 
 # funcion para detectar rostros en vivo
 def detectar_rostro_vivo():
+    TEMP_FOLDER = "images/"
     # inicializando la video camara
     cap_h1 = cv2.VideoCapture(0)
 
@@ -51,6 +62,9 @@ def detectar_rostro_vivo():
 
     # inicializacion de cuadro pasado del frame
     p_time = 0
+
+    # inicializando objeto de antispoofing
+    # deepface = DeepFaceAntiSpoofing()
 
     # si no se abre la camara web se mostrara un error
     if not cap_h1.isOpened():
@@ -71,8 +85,14 @@ def detectar_rostro_vivo():
         # mostrar los FPS en el live
         cv2.putText(frame, f"FPS: {int(fps)}", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-        results = DeepFace.analyze(frame, actions=['emotion'], enforce_detection=False, detector_backend='opencv',)
+        #deepface = DeepFaceAntiSpoofing()
+        #temp_path = os.path.join(TEMP_FOLDER, "capture.jpg")
+        #cv2.imwrite(temp_path, frame)
 
+        #temp_pathresponse = deepface.analyze_deepface(temp_path)
+        #print(response)
+
+        results = DeepFace.analyze(frame, actions=['emotion'], enforce_detection=False, detector_backend="opencv", anti_spoofing=True)
         for result in results:
             x, y, w, h = result['region']['x'], result['region']['y'], result['region']['w'], result['region']['h']        # aplicando downscaling a la imagen a 1/4 parte de su tamano
             cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
@@ -84,3 +104,5 @@ def detectar_rostro_vivo():
     # se limpia el cache y se quitan los procesos abiertos en segundo plano
     cap_h1.release()
     cv2.destroyAllWindows()
+
+        

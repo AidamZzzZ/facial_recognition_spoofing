@@ -1,17 +1,12 @@
 import os
-os.environ['TF_USE_LEGACY_KERAS'] = '0'
-import tensorflow as tf
+os.environ["TF_USE_LEGACY_KERAS"] = "1"
 
-# pyrefly: ignore [missing-import]
+import tensorflow as tf
 import cv2
 import time
-
-# pyrefly: ignore [missing-import]
 from deepface import DeepFace
-# pyrefly: ignore [missing-import]
 from deepface.modules.exceptions import ImgNotFound
 import os
-# pyrefly: ignore [missing-import]
 from deepface_antispoofing import DeepFaceAntiSpoofing
 
 # funcion para detectar rostros en imagenes

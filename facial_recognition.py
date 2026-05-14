@@ -30,7 +30,9 @@ R: """))
             elif entrada == 2:
                 # se llama a la funcion para detectar rostros en vivo
                 live = detectar_rostro_vivo()
-            elif entrada == 3:
+            elif entrada == 4:
+                ...
+            elif entrada == 5:
                 print("Cerrando programa...")
                 break
             # si no la respuesta es incorrecta

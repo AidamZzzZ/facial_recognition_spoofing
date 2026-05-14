@@ -15,7 +15,18 @@ def analizar_rostro_bounding_box(frame):
         bounding_box = (result['region']['x'], result['region']['y'], result['region']['w'], result['region']['h'])        # aplicando downscaling a la imagen a 1/4 parte de su tamano    
     is_processing = False
 
-def video_camara(src = 0):
+def analizar_rostro_db(frame):
+    global bounding_box, is_processing
+    results = DeepFace.find(frame, db_path="/home/aidam/Desktop/facial_recognition_spoofing/src/db", model_name="VGG-Face", enforce_detection=False)
+    print(results)
+    if not results[0].empty:
+        match_path = results[0].iloc[0]['identity']
+        person_name = match_path.split("/")[-1].split(".")[0]
+        
+        cv2.putText(frame, person_name, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+    else:
+        print("Persona noo existe en la base de dats")
+def video_camara(src = 0, funcion = None):
     global bounding_box, is_processing 
     cap = cv2.VideoCapture(src)
 
@@ -35,7 +46,7 @@ def video_camara(src = 0):
 
         if not is_processing:
             is_processing = True
-            threading.Thread(target=analizar_rostro_bounding_box, args=(frame.copy(),)).start()
+            threading.Thread(target=funcion, args=(frame.copy(),)).start()
     
         if bounding_box:
             x, y, w, h = bounding_box
@@ -48,6 +59,8 @@ def video_camara(src = 0):
     cap.release()
     cv2.destroyAllWindows()
 
-th1 = threading.Thread(target=video_camara, args=())
-th1.start()
-th1.join()
+#th1 = threading.Thread(target=video_camara, args=(0, analizar_rostro_db,))
+#th1.start()
+#th1.join()
+
+DeepFace.stream(db_path="src/db", enable_face_analysis=False, model_name="VGG-Face")

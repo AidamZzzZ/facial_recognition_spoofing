@@ -1,4 +1,5 @@
 import os
+import sys
 os.environ["TF_USE_LEGACY_KERAS"] = "1"
 
 import tensorflow as tf
@@ -6,8 +7,14 @@ import cv2
 import time
 from deepface import DeepFace
 from deepface.modules.exceptions import ImgNotFound
-import os
-from deepface_antispoofing import DeepFaceAntiSpoofing
+
+# Permite ejecutar el archivo directamente con python src/threads/threads_model.py
+if __package__ is None or __package__ == "":
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+
+from src.db.db import buscar_por_imagen, registrar_usuario_db
 
 # funcion para detectar rostros en imagenes
 def detectar_rostro_imagen(base_path):
@@ -65,6 +72,8 @@ def detectar_rostro_vivo():
     if not cap_h1.isOpened():
         print("Camara no pudo iniciarse")
     
+    is_real = None
+    
     # se ejecuta la camara web en tiempo real
     while cap_h1.isOpened():
         ret, frame = cap_h1.read()
@@ -80,18 +89,17 @@ def detectar_rostro_vivo():
         # mostrar los FPS en el live
         cv2.putText(frame, f"FPS: {int(fps)}", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-        #deepface = DeepFaceAntiSpoofing()
-        #temp_path = os.path.join(TEMP_FOLDER, "capture.jpg")
-        #cv2.imwrite(temp_path, frame)
-
-        #temp_pathresponse = deepface.analyze_deepface(temp_path)
-        #print(response)
-
-        results = DeepFace.analyze(frame, actions=['emotion'], enforce_detection=False, detector_backend="opencv", anti_spoofing=True)
-        for result in results:
-            x, y, w, h = result['region']['x'], result['region']['y'], result['region']['w'], result['region']['h']        # aplicando downscaling a la imagen a 1/4 parte de su tamano
+        results = DeepFace.extract_faces(frame, enforce_detection=False, detector_backend="opencv", anti_spoofing=True)
+        is_real = results[0]['is_real']
+        
+        for result in results:            
+            x, y, w, h = result['facial_area']['x'], result['facial_area']['y'], result['facial_area']['w'], result['facial_area']['h']        # aplicando downscaling a la imagen a 1/4 parte de su tamano
             cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
+            if not is_real:
+                x, y, w, h = result['facial_area']['x'], result['facial_area']['y'], result['facial_area']['w'], result['facial_area']['h']        # aplicando downscaling a la imagen a 1/4 parte de su tamano
+                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
+                
         cv2.imshow("Deteccion en tiempo real ", frame)
         if cv2.waitKey(1) == ord('q'):
             break
@@ -100,4 +108,14 @@ def detectar_rostro_vivo():
     cap_h1.release()
     cv2.destroyAllWindows()
 
-        
+# funcion para registrar a usuario en la base de datos
+def registrar_usuario():
+    try:
+        # campo nombre
+        name = input("Ingrese su nombre: ")
+        # campo de ruta de la imagenn
+        img_path = input("Ingrese la ruta de su imagen: ")
+        # se llama a la funcion que agrega el nombre y la imagen que convertira en un embedding
+        registrar_usuario_db(name, img_path)
+    except Exception as e:
+        print(f"Error: {e}")

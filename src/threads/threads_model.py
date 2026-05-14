@@ -1,31 +1,98 @@
+import os
+import sys
 import cv2
 import time
 import threading
-import queue
+import traceback
+import numpy as np
 from deepface import DeepFace
 
+# Permite ejecutar el archivo directamente con python src/threads/threads_model.py
+if __package__ is None or __package__ == "":
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+
+from src.db.db import buscar_por_imagen
+
 bounding_box = None
+face_box = None
+recognized_name = None
+recognition_color = (128, 128, 128)
 is_processing = False
 
-def analizar_rostro_bounding_box(frame):
-    global bounding_box, is_processing
-    results = DeepFace.analyze(frame, actions=['emotion'], enforce_detection=False, detector_backend='opencv')
+try:
+    import torch
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
 
-    for result in results:
-        bounding_box = (result['region']['x'], result['region']['y'], result['region']['w'], result['region']['h'])        # aplicando downscaling a la imagen a 1/4 parte de su tamano    
-    is_processing = False
+def buscar_por_imagen_frame(frame):
+    global face_box, recognized_name, recognition_color, is_processing
 
-def analizar_rostro_db(frame):
-    global bounding_box, is_processing
-    results = DeepFace.find(frame, db_path="/home/aidam/Desktop/facial_recognition_spoofing/src/db", model_name="VGG-Face", enforce_detection=False)
-    print(results)
-    if not results[0].empty:
-        match_path = results[0].iloc[0]['identity']
-        person_name = match_path.split("/")[-1].split(".")[0]
-        
-        cv2.putText(frame, person_name, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-    else:
-        print("Persona noo existe en la base de dats")
+    try:
+        if frame is None or not isinstance(frame, np.ndarray):
+            raise ValueError("Frame inválido")
+
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        analysis = DeepFace.analyze(
+            img_path=rgb_frame,
+            actions=['emotion'],
+            enforce_detection=True,
+            detector_backend='opencv',
+            anti_spoofing=True,
+            align=True
+        )
+        analysis = analysis if isinstance(analysis, list) else [analysis]
+        rostro = analysis[0]
+
+        region = rostro.get('facial_area') or rostro.get('region')
+        if region:
+            x = int(region.get('x', 0))
+            y = int(region.get('y', 0))
+            w = int(region.get('w', 0))
+            h = int(region.get('h', 0))
+            face_box = (x, y, w, h)
+            face_crop_bgr = frame[y:y+h, x:x+w]
+        else:
+            face_crop_bgr = frame
+
+        es_real = analysis[0]['is_real']
+        if TORCH_AVAILABLE:
+            spoof_result = DeepFace.represent(
+                img_path=face_crop_bgr,
+                model_name='ArcFace',
+                enforce_detection=True,
+                detector_backend='opencv',
+                align=True
+            )
+            spoof_result = spoof_result if isinstance(spoof_result, list) else [spoof_result]
+            es_real = spoof_result[0]['is_real']
+
+        if not es_real:
+            recognized_name = 'SPOOFING'
+            recognition_color = (0, 0, 255)
+        else:
+            nombre = buscar_por_imagen(face_crop_bgr, enforce_detection=False)
+            if nombre:
+                recognized_name = nombre
+                recognition_color = (0, 255, 0)
+            else:
+                recognized_name = 'DESCONOCIDO'
+                recognition_color = (128, 128, 128)
+
+    except Exception as e:
+        if 'Face could not be detected' in str(e) or 'Face could not be detected' in repr(e):
+            face_box = None
+            recognized_name = 'DESCONOCIDO'
+            recognition_color = (128, 128, 128)
+        else:
+            print(f"Error procesando frame: {e}")
+            traceback.print_exc()
+    finally:
+        is_processing = False
+      
 def video_camara(src = 0, funcion = None):
     global bounding_box, is_processing 
     cap = cv2.VideoCapture(src)
@@ -48,9 +115,12 @@ def video_camara(src = 0, funcion = None):
             is_processing = True
             threading.Thread(target=funcion, args=(frame.copy(),)).start()
     
-        if bounding_box:
-            x, y, w, h = bounding_box
-            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        if face_box is not None:
+            x, y, w, h = face_box
+            cv2.rectangle(frame, (x, y), (x + w, y + h), recognition_color, 2)
+            cv2.rectangle(frame, (x, y - 35), (x + w, y), recognition_color, cv2.FILLED)
+            cv2.putText(frame, recognized_name, (x + 5, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+
         cv2.imshow("deteccion en vivo", frame)
 
         if cv2.waitKey(1) == ord('q'):
@@ -59,8 +129,7 @@ def video_camara(src = 0, funcion = None):
     cap.release()
     cv2.destroyAllWindows()
 
-#th1 = threading.Thread(target=video_camara, args=(0, analizar_rostro_db,))
-#th1.start()
-#th1.join()
-
-DeepFace.stream(db_path="src/db", enable_face_analysis=False, model_name="VGG-Face")
+if __name__ == "__main__":
+    th1 = threading.Thread(target=video_camara, args=(0, buscar_por_imagen_frame,))
+    th1.start()
+    th1.join()

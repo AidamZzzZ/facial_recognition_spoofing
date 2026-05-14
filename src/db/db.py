@@ -1,15 +1,26 @@
-import psycopg2
+import os
+import cv2
 import numpy as np
+import psycopg2
 from deepface import DeepFace
+from dotenv import load_dotenv
+
+load_dotenv()
+
+DATABASE=os.getenv('DATABASE')
+USER=os.getenv('USER_DB')
+PASSWORD=os.getenv('PASSWORD_DB')
+HOST=os.getenv('HOST_DB')
+PORT=os.getenv('PORT_DB')
 
 def crear_connect_db():
     try:
         conn = psycopg2.connect(
-            database='db_faces',
-            user='aidam',
-            password='aidam',
-            host='localhost',
-            port='5432'
+            database=DATABASE,
+            user=USER,
+            password=PASSWORD,
+            host=HOST,
+            port=PORT
         )
 
         cursor = conn.cursor()
@@ -35,7 +46,7 @@ def registrar_usuario_db(name, img):
     conn = crear_connect_db()
 
     try:
-        obj = DeepFace.represent(img_path=img, model_name="ArcFace")
+        obj = DeepFace.represent(img_path=img, model_name="ArcFace", enforce_detection=True)
         embedding = obj[0]["embedding"]
         
         cursor = conn.cursor()
@@ -52,63 +63,63 @@ def registrar_usuario_db(name, img):
         print(f"Error: {e}")
 
 
-def buscar_por_imagen(ruta_imagen):
-    import os
+def buscar_por_imagen(img, enforce_detection=True):
     print("\n--- BÚSQUEDA DE USUARIO POR FOTOGRAFÍA ---")
-
-    # 2. Extraer el embedding de la imagen
+    
     print("Analizando el rostro en la imagen...")
     try:
+        # Si la imagen viene de OpenCV, convertirla a RGB
+        if isinstance(img, np.ndarray):
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+        # obtiene el embedding de la imagen
         objs = DeepFace.represent(
-            img_path=ruta_imagen, 
-            model_name="ArcFace", 
-            enforce_detection=True
+            img_path=img,
+            model_name="ArcFace",
+            enforce_detection=enforce_detection,
+            detector_backend='opencv'
         )
         vector_busqueda = objs[0]["embedding"]
     except Exception as e:
-        print("Error: No se pudo detectar un rostro claro en la imagen proporcionada.")
-        return
+        print(f"Error: No se pudo detectar un rostro claro en la imagen proporcionada. {e}")
+        return None
 
     # 3. Conectar a PostgreSQL y buscar el más similar
     try:
+        # se conecta a la base de datos
         conn = crear_connect_db()
         cur = conn.cursor()
 
-        # Usamos la distancia Coseno (<=>)
+        # Usamos la distancia Euclidiana entre embeddings (<=> en pgvector)
         query = """
             SELECT name, embedding <=> %s::vector AS distancia
             FROM users
             ORDER BY embedding <=> %s::vector
-            LIMIT 1;
+            LIMIT 2;
         """
         cur.execute(query, (vector_busqueda, vector_busqueda))
-        resultado = cur.fetchone()
+        resultados = cur.fetchall()
 
-        # 4. Evaluar el resultado con un umbral
-        UMBRAL_DISTANCIA = 0.40
+        UMBRAL_DISTANCIA = 0.30
 
-        if resultado:
-            nombre_match, distancia = resultado
-            
-            print("\n--- RESULTADO DE LA BÚSQUEDA ---")
-            print(f"Mejor coincidencia encontrada: {nombre_match}")
-            print(f"Distancia Coseno: {distancia:.4f}")
+        if resultados:
+            nombre_match, distancia = resultados[0]
 
             if distancia < UMBRAL_DISTANCIA:
-                # Si es menor al umbral, es la misma persona
-                print(f"✅ ¡Identidad confirmada! El rostro pertenece a {nombre_match}.")
+                    print(nombre_match)
+                    return nombre_match
+                
             else:
-                # Si el rostro más parecido sigue estando muy "lejos" matemáticamente
-                print("❌ Rostro desconocido. Se parece un poco, pero la distancia es muy alta para confirmar.")
+                print("Rostro desconocido.")
+                return None
         else:
             print("La base de datos está vacía.")
+            return None
 
     except Exception as e:
         print(f"Error de base de datos: {e}")
+        return None
     finally:
         if 'conn' in locals() and conn:
             cur.close()
             conn.close()
-
-new_user = buscar_por_imagen("/home/aidam/Desktop/facial_recognition_spoofing/images/imagen.jpg")
-print(new_user)

@@ -1,7 +1,7 @@
 from packaging._parser import Value
 import time
 from src.tools.clean_screen import limpiar_pantalla
-from src.model.model_function import detectar_rostro_imagen, detectar_rostro_vivo
+from src.model.model_function import detectar_rostro_imagen, detectar_rostro_vivo, registrar_usuario
 
 def main():
     # se limpia la pantalla de la terminal antes de comenzar el programa
@@ -13,7 +13,9 @@ def main():
 Seleccione una opcion
 1. Analizar imagen local
 2. Analizar imagen en vivo
-3. Salir
+3. Registrar usuario
+4. Camara En Vivo
+5. Salir
 R: """))
             # si la entrada es igual a 1 es para analizar una imagen
             if entrada == 1:
@@ -30,10 +32,13 @@ R: """))
             elif entrada == 2:
                 # se llama a la funcion para detectar rostros en vivo
                 live = detectar_rostro_vivo()
+            elif entrada == 3:
+                registro_usuario = registrar_usuario()
             elif entrada == 4:
                 ...
             elif entrada == 5:
-                print("Cerrando programa...")
+                print("Saliendo...")
+                time.sleep(1)
                 break
             # si no la respuesta es incorrecta
             else:

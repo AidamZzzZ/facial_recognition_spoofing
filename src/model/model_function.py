@@ -53,11 +53,33 @@ def detectar_rostro_imagen(base_path):
     except ImgNotFound as e:
         print(f"Error: {e}")
 
+def find_working_camera_index(max_index=5):
+    for i in range(max_index + 1):
+        cap = cv2.VideoCapture(i)
+        if cap.isOpened():
+            cap.release()
+            return i
+        cap.release()
+    return None
+
 # funcion para detectar rostros en vivo
-def detectar_rostro_vivo():
+def detectar_rostro_vivo(camera_index=0):
     TEMP_FOLDER = "images/"
-    # inicializando la video camara
-    cap_h1 = cv2.VideoCapture(0)
+
+    cap_h1 = cv2.VideoCapture(camera_index)
+    if not cap_h1.isOpened():
+        print(f"Camara no pudo iniciarse con index {camera_index}. Buscando otra camara...")
+        cap_h1.release()
+        alt_index = find_working_camera_index(4)
+        if alt_index is None:
+            print("No se encontró ninguna cámara disponible.")
+            print("Verifica que el dispositivo exista en /dev/video* y que tengas permisos de lectura/escritura.")
+            return
+        print(f"Cámara encontrada en index {alt_index}.")
+        cap_h1 = cv2.VideoCapture(alt_index)
+        if not cap_h1.isOpened():
+            print(f"Error al abrir la cámara en index {alt_index}.")
+            return
 
     # se crea un objeto CLAHE
     clahe = cv2.createCLAHE(clipLimit=2.0)
@@ -68,10 +90,6 @@ def detectar_rostro_vivo():
     # inicializando objeto de antispoofing
     # deepface = DeepFaceAntiSpoofing()
 
-    # si no se abre la camara web se mostrara un error
-    if not cap_h1.isOpened():
-        print("Camara no pudo iniciarse")
-    
     is_real = None
     
     # se ejecuta la camara web en tiempo real
@@ -93,11 +111,11 @@ def detectar_rostro_vivo():
         is_real = results[0]['is_real']
         
         for result in results:            
-            x, y, w, h = result['facial_area']['x'], result['facial_area']['y'], result['facial_area']['w'], result['facial_area']['h']        # aplicando downscaling a la imagen a 1/4 parte de su tamano
+            x, y, w, h = result['facial_area']['x'], result['facial_area']['y'], result['facial_area']['w'], result['facial_area']['h']
             cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
             if not is_real:
-                x, y, w, h = result['facial_area']['x'], result['facial_area']['y'], result['facial_area']['w'], result['facial_area']['h']        # aplicando downscaling a la imagen a 1/4 parte de su tamano
+                x, y, w, h = result['facial_area']['x'], result['facial_area']['y'], result['facial_area']['w'], result['facial_area']['h']
                 cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
                 
         cv2.imshow("Deteccion en tiempo real ", frame)

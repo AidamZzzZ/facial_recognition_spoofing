@@ -95,7 +95,7 @@ def buscar_por_imagen(img, enforce_detection=True):
             SELECT name, embedding <=> %s::vector AS distancia
             FROM users
             ORDER BY embedding <=> %s::vector
-            LIMIT 2;
+            LIMIT 1;
         """
         cur.execute(query, (vector_busqueda, vector_busqueda))
         resultados = cur.fetchall()

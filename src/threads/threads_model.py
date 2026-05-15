@@ -36,12 +36,10 @@ def buscar_por_imagen_frame(frame):
 
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-        analysis = DeepFace.analyze(
-            img_path=rgb_frame,
-            actions=['emotion'],
-            enforce_detection=True,
-            detector_backend='opencv',
-            anti_spoofing=True,
+        analysis = DeepFace.find(
+            img_path=frame, 
+            model_name="retinaFace", 
+            enforce_detection=False, 
             align=True
         )
         analysis = analysis if isinstance(analysis, list) else [analysis]
@@ -57,23 +55,6 @@ def buscar_por_imagen_frame(frame):
             face_crop_bgr = frame[y:y+h, x:x+w]
         else:
             face_crop_bgr = frame
-
-        es_real = analysis[0]['is_real']
-        if TORCH_AVAILABLE:
-            spoof_result = DeepFace.represent(
-                img_path=face_crop_bgr,
-                model_name='ArcFace',
-                enforce_detection=True,
-                detector_backend='opencv',
-                align=True
-            )
-            spoof_result = spoof_result if isinstance(spoof_result, list) else [spoof_result]
-            es_real = spoof_result[0]['is_real']
-
-        if not es_real:
-            recognized_name = 'SPOOFING'
-            recognition_color = (0, 0, 255)
-        else:
             nombre = buscar_por_imagen(face_crop_bgr, enforce_detection=False)
             if nombre:
                 recognized_name = nombre
@@ -96,6 +77,11 @@ def buscar_por_imagen_frame(frame):
 def video_camara(src = 0, funcion = None):
     global bounding_box, is_processing 
     cap = cv2.VideoCapture(src)
+
+    if not cap.isOpened():
+        print(f"No se pudo abrir la cámara con índice {src}. Verifica /dev/video* y los permisos de tu usuario.")
+        cap.release()
+        return
 
     p_time = 0
 
@@ -130,6 +116,6 @@ def video_camara(src = 0, funcion = None):
     cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-    th1 = threading.Thread(target=video_camara, args=(0, buscar_por_imagen_frame,))
+    th1 = threading.Thread(target=video_camara, args=(1, buscar_por_imagen_frame,))
     th1.start()
     th1.join()

@@ -1,12 +1,22 @@
 import os
 import cv2
 import psycopg2
+import numpy as np
 from deepface import DeepFace
+
+def ajustar_gamma(imagen, gamma=1.0):
+    # Construir una tabla de búsqueda (LUT) que mapea los valores de píxeles
+    invGamma = 1.0 / gamma
+    table = np.array([((i / 255.0) ** invGamma) * 255
+                      for i in np.arange(0, 256)]).astype("uint8")
+    
+    # Aplicar la corrección usando la tabla
+    return cv2.LUT(imagen, table)
 
 conn = psycopg2.connect(
     host="localhost",
-    user="postgres",
-    password="postgres",
+    user="aidam",
+    password="aidam",
     port="5432",
     database="db_faces"
 )
@@ -16,10 +26,14 @@ cursor = conn.cursor()
 # Use OpenCV face detector to get bounding boxes
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
-cap = cv2.VideoCapture(1)
+cap = cv2.VideoCapture(0)
+cap.set(cv2.CAP_PROP_EXPOSURE, -4)
+cap.set(cv2.CAP_PROP_BACKLIGHT, 0)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 200)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 200)
 
 name = None
-res = None
+res = ...
 try:
     while True:
         ret, frame = cap.read()
@@ -28,11 +42,27 @@ try:
 
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60))
-
+        
         for (x, y, w, h) in faces:
-            face_img = frame[y:y+h, x:x+w]
+            img_gamma = ajustar_gamma(frame, gamma=1.5)
+            lab = cv2.cvtColor(img_gamma, cv2.COLOR_BGR2LAB)
+
+            l, a, b = cv2.split(lab)
+
+            clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8,8))
+            cl = clahe.apply(l)
+
+            limg = cv2.merge((cl, a, b))
+            img_clahe = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
+
+            face_img = img_clahe[y:y+h, x:x+w]
             try:
-                objs = DeepFace.represent(img_path=face_img, model_name="ArcFace", enforce_detection=True)
+                objs = DeepFace.represent(
+                    img_path=face_img, 
+                    model_name="ArcFace", 
+                    enforce_detection=True,
+                    align=True
+                )
             except Exception as e:
                 objs = None
 
@@ -41,18 +71,21 @@ try:
                 if embedding is not None:
                     try:
                         cursor.execute("""
-                        SELECT name, embedding <-> %s::vector AS distance
-                        FROM users
-                        LIMIT 1
+                        SELECT * FROM (
+                            SELECT name, embedding <=> %s::vector AS distance
+                            FROM users
+                        ) a
+                        where distance < 0.6
+                        ORDER BY distance ASC
+                        LIMIT 1;
                         """, (embedding,))
                         res = cursor.fetchone()
+                        print(res)
                         if res and res[1] is not None:
                             name = res[0]
                     except Exception as e:
                         conn.rollback()
-                        print(f"DB error: {e}")
-
-            if res[1] < 4.5:
+            if res:
                 color = (0, 255, 0)
                 label = name
                 text_color = (255, 255, 255)
